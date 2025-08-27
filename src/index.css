@@ -1,0 +1,9 @@
+/* Entry point for Tailwind. Import base, components and utilities. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom global styles can go here. */
+html, body, #root {
+  height: 100%;
+}

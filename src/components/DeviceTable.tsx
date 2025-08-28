@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import type { Device } from '../types';
+import type { Device as UiDevice } from '../types';
 
 interface DeviceTableProps {
-  devices: Device[];
-  labelMap: Record<string, string>;
+  devices: UiDevice[];
+  deviceMap: Record<string, UiDevice>;
   onSetLabel: (mac: string, label: string) => void;
   considerHomeMs: number;
   capturedAt: string;
@@ -16,7 +16,7 @@ interface DeviceTableProps {
  * label is saved via onSetLabel. Considered home status is computed
  * based on the device's connection status and the consider‑home window.
  */
-export const DeviceTable: React.FC<DeviceTableProps> = ({ devices, labelMap, onSetLabel, considerHomeMs, capturedAt }) => {
+export const DeviceTable: React.FC<DeviceTableProps> = ({ devices, deviceMap, onSetLabel, considerHomeMs, capturedAt }) => {
   // Track which device is currently being edited.
   const [editingMac, setEditingMac] = useState<string | null>(null);
   const [tempLabel, setTempLabel] = useState<string>('');
@@ -50,7 +50,7 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({ devices, labelMap, onS
         <tbody>
           {devices.map((device) => {
             const mac = device.mac;
-            const currentLabel = labelMap[mac] ?? device.label;
+            const currentLabel = deviceMap[mac]?.label ?? device.label;
             // Determine whether the device should be considered home. If the
             // device is currently connected, we mark it as home immediately.
             // Otherwise, if it's offline but the time since the snapshot is

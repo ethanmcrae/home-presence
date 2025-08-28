@@ -12,7 +12,19 @@ export interface Device {
   band: string | null;
   rssi: number | null;
   ip: string | null;
+  ownerId?: number;
+  ownerName?: string;
 }
+
+/**
+ * Device data from the device API call
+ */
+export interface DeviceDetails {
+  mac: string;
+  label?: string;
+  ownerId?: number;
+  ownerName?: string;
+};
 
 export interface PresenceSnapshot {
   capturedAt: string;
@@ -24,8 +36,10 @@ export interface PresenceSnapshot {
 export type Category = 'home' | 'unknownMacsNeedingLabels' | 'away';
 
 /**
- * A simple mapping of MAC addresses to user-provided names. You might
+ * A temporary placeholder mapping of MAC addresses to user-provided names. You might
  * store this in a backend database in the future. For now it's just
  * an in-memory record on the frontend.
  */
 export type LabelMap = Record<string, string>;
+
+export type DeviceMap = Record<string, Device>;

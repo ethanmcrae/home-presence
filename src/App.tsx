@@ -2,8 +2,33 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { PersonCard } from './components/PersonCard';
 import { DeviceTable } from './components/DeviceTable';
 import { MaintenanceView } from './components/MaintenanceView';
-import type { Device as UiDevice, PresenceSnapshot as UiPresenceSnapshot, LabelMap, Category } from './types';
+import type { Device as UiDevice, PresenceSnapshot as UiPresenceSnapshot, LabelMap, Category, DeviceMap, DeviceDetails } from './types';
 import { getPresenceSnapshot } from './api/router';
+import { listDeviceDetails, upsertDeviceLabel } from './api/devices';
+import { listOwners } from './api/owners';
+import { setDeviceOwner } from './api/devices';
+import type { Owner } from './api/owners';
+import { SettingsOwners } from './components/SettingsOwners';
+
+function buildDeviceMapFrom(snapshot: UiPresenceSnapshot, dbDevices: Record<string, DeviceDetails>): DeviceMap {
+  const merged: DeviceMap = {};
+  const all: UiDevice[] = [...snapshot.home, ...snapshot.away];
+  for (const device of all) {
+    const { mac } = device
+    if (!merged[mac]) {
+      const details = dbDevices[mac] || {};
+      merged[mac] = { ...device, ...details} as UiDevice
+    }
+  }
+  return merged;
+}
+
+function buildOwnerMapFrom(snapshot: UiPresenceSnapshot): Record<string, number | null> {
+  const map: Record<string, number | null> = {};
+  const all: UiDevice[] = [...snapshot.home, ...snapshot.away];
+  for (const d of all) map[d.mac] = (d as any).ownerId ?? null;
+  return map;
+}
 
 /**
  * Root component for the home presence tracker application. This version
@@ -16,16 +41,20 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // A map of MAC → label. When the user assigns a new label in the
+  // A map of MAC → device details. When the user updates a device in the
   // maintenance view or device table this state is updated.
-  const [labelMap, setLabelMap] = useState<LabelMap>({});
+  const [deviceMap, setDeviceMap] = useState<DeviceMap>({});
 
   // Consider‑home threshold in milliseconds. Devices that are offline
   // but last seen within this period will still be counted as home.
   const [considerHomeMs, setConsiderHomeMs] = useState<number>(5 * 60 * 1000); // default 5 minutes
 
   // Which tab is active: 'dashboard' or 'maintenance'.
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'maintenance'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'maintenance' | 'settings'>('dashboard');
+
+  // Owners list
+  const [owners, setOwners] = useState<Owner[]>([]);
+  const [ownerMap, setOwnerMap] = useState<Record<string, number | null>>({});
 
   // Fetch a fresh snapshot from the router. Options are intentionally
   // omitted per the requirement — we call getPresenceSnapshot() directly.
@@ -34,6 +63,7 @@ const App: React.FC = () => {
     setError(null);
     try {
       const snap = await getPresenceSnapshot();
+      console.log({snap});
       // The presence module's type is shape-compatible with our UI types.
       setSnapshot(snap as unknown as UiPresenceSnapshot);
     } catch (e: any) {
@@ -44,42 +74,79 @@ const App: React.FC = () => {
     }
   };
 
+  const loadOwnersOnce = async () => {
+    try {
+      const os = await listOwners();
+      setOwners(os);
+    } catch (e) {
+      // non-fatal
+    }
+  };
+
+  const refreshDerivedFromSnapshot = async (snap: UiPresenceSnapshot, opts?: { canceled?: () => boolean }) => {
+    // ownerMap is derived locally
+    setOwnerMap(buildOwnerMapFrom(snap));
+
+    // labels come from DB + snapshot fallback
+    try {
+      const dbDevices = await listDeviceDetails();
+      if (opts?.canceled?.()) return;               // simple race guard
+      setDeviceMap(buildDeviceMapFrom(snap, dbDevices));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      await fetchSnapshot();
-    })();
-    return () => {
-      mounted = false; // for symmetry; no ongoing polling by default
-    };
+    console.log({deviceMap});
+  }, [deviceMap]);
+
+  // On mount: fetch snapshot (unchanged)
+  useEffect(() => {
+    fetchSnapshot();
+    loadOwnersOnce(); // settings page should re-call after CRUD
   }, []);
 
-  // On snapshot change, populate the label map with any labels present.
+  // Whenever snapshot changes: rebuild ownerMap + labelMap
   useEffect(() => {
     if (!snapshot) return;
-    const initial: LabelMap = {};
-    const allDevices: UiDevice[] = [...snapshot.home, ...snapshot.away];
-    allDevices.forEach((device) => {
-      if (device.label) {
-        initial[device.mac] = device.label;
-      }
-    });
-    setLabelMap(initial);
+    let cancelled = false;
+    const canceled = () => cancelled;
+
+    (async () => {
+      await refreshDerivedFromSnapshot(snapshot, { canceled });
+    })();
+
+    return () => { cancelled = true; };
   }, [snapshot]);
 
   /** Assigns a new label to a MAC address. */
-  const handleSetLabel = (mac: string, label: string) => {
-    setLabelMap((prev) => {
+  const handleSetLabel = async (mac: string, label: string) => {
+    // optimistic update
+    setDeviceMap((prev) => {
       const next = { ...prev };
-      if (!label) delete next[mac];
-      else next[mac] = label;
+      if (!label) delete next[mac]; else next[mac] = { ...next[mac], label };
       return next;
     });
+
+    try {
+      await upsertDeviceLabel(mac, label);
+    } catch (e: any) {
+      console.error(e);
+      // rollback
+      setDeviceMap((prev) => {
+        const next = { ...prev };
+        // revert to previous value by reloading from server (simple approach):
+        // you could also cache the "before" value locally for a more exact rollback
+        return next; // keep optimistic value while we show the error
+      });
+      setError(e?.message || 'Failed to save label');
+    }
   };
 
   /** Adds a label and removes the MAC from unknownMacs. */
-  const handleAddLabel = (mac: string, label: string, category: Category) => {
-    handleSetLabel(mac, label);
+  const handleAddLabel = async (mac: string, label: string, category: Category) => {
+    await handleSetLabel(mac, label);
     setSnapshot((prev) => {
       if (!prev) return prev;
       const filteredUnknown = prev[category].filter((m) => m !== mac);
@@ -87,16 +154,30 @@ const App: React.FC = () => {
     });
   };
 
+  const handleSetOwner = async (mac: string, ownerId: number | null, category: Category) => {
+    const prev = ownerMap[mac] ?? null;
+    if (snapshot) buildOwnerMapFrom(snapshot)
+    try {
+      await setDeviceOwner(mac, ownerId);
+      loadOwnersOnce();
+    } catch (e: any) {
+      if (snapshot) buildOwnerMapFrom(snapshot)
+      setError(e?.message || "Failed to set owner");
+    }
+  };
+
   /** Derive persons from the current snapshot + label map. */
   const persons = useMemo(() => {
     if (!snapshot) return [] as { name: string; devices: UiDevice[]; isHome: boolean }[];
 
     const grouped: Record<string, UiDevice[]> = {};
-    const allDevices: UiDevice[] = [...snapshot.home, ...snapshot.away];
+    const allDevices: UiDevice[] = [...Object.values(deviceMap)];
     allDevices.forEach((device) => {
-      const name = labelMap[device.mac] ?? device.display;
-      if (!grouped[name]) grouped[name] = [];
-      grouped[name].push(device);
+      const owner = deviceMap[device.mac]?.ownerName;
+      if (owner) {
+        if (!grouped[owner]) grouped[owner] = [];
+        grouped[owner].push(device);
+      }
     });
 
     const capturedDate = new Date(snapshot.capturedAt);
@@ -109,7 +190,7 @@ const App: React.FC = () => {
       });
       return { name, devices, isHome };
     });
-  }, [snapshot, labelMap, considerHomeMs]);
+  }, [snapshot, deviceMap, considerHomeMs]);
 
   const allDevices: UiDevice[] = useMemo(() => {
     if (!snapshot) return [] as UiDevice[];
@@ -121,7 +202,7 @@ const App: React.FC = () => {
       <header className="mb-6 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Home Presence Tracker</h1>
-          <p className="text-sm text-gray-600">Router-backed</p>
+          <p className="text-sm text-gray-600">Creepy stalky roomate watchy</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -164,6 +245,15 @@ const App: React.FC = () => {
               onClick={() => setActiveTab('maintenance')}
             >
               Maintenance
+            </button>
+            <button
+              className={`px-3 py-2 rounded ${activeTab === 'settings'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              onClick={() => setActiveTab('settings')}
+            >
+              Settings
             </button>
           </nav>
 
@@ -208,7 +298,7 @@ const App: React.FC = () => {
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">Devices</h2>
                 <DeviceTable
                   devices={allDevices}
-                  labelMap={labelMap}
+                  deviceMap={deviceMap}
                   onSetLabel={handleSetLabel}
                   considerHomeMs={considerHomeMs}
                   capturedAt={snapshot.capturedAt}
@@ -223,7 +313,15 @@ const App: React.FC = () => {
               unknownMacs={snapshot.unknownMacsNeedingLabels}
               awayMacs={snapshot.away}
               onAddLabel={handleAddLabel}
+              deviceMap={deviceMap}
+              owners={owners}
+              ownerMap={ownerMap}
+              onSetOwner={handleSetOwner}
             />
+          )}
+
+          {activeTab === 'settings' && (
+            <SettingsOwners />
           )}
         </>
       )}

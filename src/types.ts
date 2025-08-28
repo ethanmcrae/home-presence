@@ -30,10 +30,10 @@ export interface PresenceSnapshot {
   capturedAt: string;
   home: Device[];
   away: Device[];
-  unknownMacsNeedingLabels: string[];
+  unclaimedDevicesNeedingLabels: string[];
 }
 
-export type Category = 'home' | 'unknownMacsNeedingLabels' | 'away';
+export type Category = 'home' | 'unclaimedDevicesNeedingLabels' | 'away';
 
 /**
  * A temporary placeholder mapping of MAC addresses to user-provided names. You might

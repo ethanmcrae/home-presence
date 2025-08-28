@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import type { Device as UiDevice } from '../types';
+import { RssiIndicator } from './RssiIndicator';
 
 interface DeviceTableProps {
-  devices: UiDevice[];
   deviceMap: Record<string, UiDevice>;
   onSetLabel: (mac: string, label: string) => void;
   considerHomeMs: number;
@@ -16,8 +16,9 @@ interface DeviceTableProps {
  * label is saved via onSetLabel. Considered home status is computed
  * based on the device's connection status and the consider‑home window.
  */
-export const DeviceTable: React.FC<DeviceTableProps> = ({ devices, deviceMap, onSetLabel, considerHomeMs, capturedAt }) => {
+export const DeviceTable: React.FC<DeviceTableProps> = ({ deviceMap, onSetLabel, considerHomeMs, capturedAt }) => {
   // Track which device is currently being edited.
+  const devices = Object.values(deviceMap);
   const [editingMac, setEditingMac] = useState<string | null>(null);
   const [tempLabel, setTempLabel] = useState<string>('');
 
@@ -57,6 +58,7 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({ devices, deviceMap, on
             // less than the consider‑home window, we still treat it as home.
             const offlineButWithinWindow = !device.connected && timeSinceCapture < considerHomeMs;
             const consideredHome = device.connected || offlineButWithinWindow;
+            const hasOwner = Boolean(device.ownerId) && device.ownerId !== 1;
 
             return (
               <tr key={mac} className="border-b border-gray-200">
@@ -80,7 +82,7 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({ devices, deviceMap, on
                     />
                   ) : (
                     <button
-                      className="text-left text-indigo-600 hover:underline focus:outline-none"
+                        className={`text-left hover:underline focus:outline-none ${hasOwner ? 'text-gray-900' : 'text-gray-600'}`}
                       onClick={() => {
                         setEditingMac(mac);
                         setTempLabel(currentLabel ?? device.display);
@@ -93,7 +95,7 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({ devices, deviceMap, on
                 <td className="py-2 px-4 font-mono text-xs text-gray-600 whitespace-nowrap">{mac}</td>
                 <td className="py-2 px-4 capitalize">{device.band ?? '-'}</td>
                 <td className="py-2 px-4">
-                  {device.rssi !== null ? `${device.rssi} dBm` : '-'}
+                  <RssiIndicator rssi={device.rssi} />
                 </td>
                 <td className="py-2 px-4 whitespace-nowrap">{device.ip ?? '-'}</td>
                 <td className="py-2 px-4">

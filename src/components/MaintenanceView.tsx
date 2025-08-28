@@ -1,16 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { Category, Device, DeviceMap } from '../types';
 import type { Owner } from '../api/owners';
+import { Select } from './Select';
+import { padIp } from '../helpers/text';
+import { FormattedIp } from './FormattedIp';
 
 interface MaintenanceViewProps {
   homeMacs: Device[];
-  unknownMacs: string[];
   awayMacs: Device[];
   onAddLabel: (mac: string, label: string, category: Category) => void;
   deviceMap: DeviceMap;
   owners: Owner[];
   ownerMap: Record<string, number | null>;
-  onSetOwner: (mac: string, ownerId: number | null, category: Category) => void;
+  onSetOwner: (mac: string, ownerId?: number, ownerName?: string) => void;
 }
 
 /**
@@ -21,7 +23,6 @@ interface MaintenanceViewProps {
  */
 export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
   homeMacs,
-  unknownMacs,
   awayMacs,
   onAddLabel,
   deviceMap,
@@ -32,6 +33,8 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
   type Row = { mac: string; label: string | null; display?: string; ip?: string; };
 
   const [editState, setEditState] = useState<Record<string, string>>({});
+
+  const unclaimedDevices = Object.values(deviceMap).filter(d => !!!d.ownerId);
 
   const sections = useMemo(
     () => [
@@ -61,13 +64,18 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
       },
       {
         key: 'unknown',
-        title: 'Unknown Devices',
-        category: 'unknownMacsNeedingLabels' as Category,
-        rows: unknownMacs.map<Row>((mac) => ({ mac, label: '' })),
+        title: 'Unclaimed Devices',
+        category: 'unclaimedDevicesNeedingLabels' as Category,
+        rows: unclaimedDevices.map<Row>((d) => ({
+          mac: d.mac,
+          label: d.label,
+          display: d.display,
+          ip: (d as any).ip ?? (d as any).lastIp ?? undefined,
+        })),
         emptyMsg: 'No unknown devices. Great job!',
       },
     ],
-    [homeMacs, awayMacs, unknownMacs]
+    [homeMacs, awayMacs, unclaimedDevices]
   );
 
   const handleSave = (mac: string, fallbackLabel: string | null, category: Category) => {
@@ -110,27 +118,28 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                   <tr key={mac} className="border-b border-gray-200">
                     {/* show friendly name in the first column */}
                     <td className="py-2 px-4 font-mono text-xs text-gray-600">
-                      {[ ip, mac, display ].filter(x => x).join(" | ")}
+                      <FormattedIp ip={ip} /> {ip && <>|</>} {display ? <>{display}</> : <>{ip || mac}</>}
                     </td>
 
                     <td className="py-2 px-4">
-                      <select
-                        className="border border-gray-300 rounded px-1 py-1 text-sm"
-                        id={String(ownerId)}
-                        value={String(ownerId) ?? ''}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          const next = v === '' ? null : Number(v);
-                          onSetOwner(mac, next, category);
+                      <Select
+                        value={String(ownerId)}
+                        onChange={(v) => {
+                          const nextId = v === null ? undefined : Number(v);
+                          const name = v === null ? undefined : owners.find(o => String(o.id) === v)?.name ?? undefined;
+                          onSetOwner(mac, nextId, name ?? undefined);
                         }}
-                      >
-                        <option value="">Unassigned</option>
-                        {owners.map(o => (
-                          <option key={o.id} value={o.id}>
-                            {o.kind === 'home' ? '🏠 ' : '👤 '}{o.name}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="Unassigned"
+                        options={owners.map(o => ({
+                          value: String(o.id),
+                          label: (
+                            <span className="flex items-center gap-1">
+                              <span>{o.kind === 'home' ? '🏠' : '👤'}</span>
+                              <span>{o.name}</span>
+                            </span>
+                          )
+                        }))}
+                      />
                     </td>
 
                     <td className="py-2 px-4">

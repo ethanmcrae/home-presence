@@ -63,7 +63,6 @@ const App: React.FC = () => {
     setError(null);
     try {
       const snap = await getPresenceSnapshot();
-      console.log({snap});
       // The presence module's type is shape-compatible with our UI types.
       setSnapshot(snap as unknown as UiPresenceSnapshot);
     } catch (e: any) {
@@ -96,10 +95,6 @@ const App: React.FC = () => {
       console.error(e);
     }
   };
-
-  useEffect(() => {
-    console.log({deviceMap});
-  }, [deviceMap]);
 
   // On mount: fetch snapshot (unchanged)
   useEffect(() => {
@@ -154,12 +149,13 @@ const App: React.FC = () => {
     });
   };
 
-  const handleSetOwner = async (mac: string, ownerId: number | null, category: Category) => {
+  const handleSetOwner = async (mac: string, ownerId?: number, ownerName?: string) => {
     const prev = ownerMap[mac] ?? null;
     if (snapshot) buildOwnerMapFrom(snapshot)
     try {
-      await setDeviceOwner(mac, ownerId);
-      loadOwnersOnce();
+      await setDeviceOwner(mac, ownerId ?? null);
+      const updatedDevice: UiDevice = { ...deviceMap[mac], ownerId, ownerName }
+      setDeviceMap((map) => ({ ...map, [mac]: updatedDevice }));
     } catch (e: any) {
       if (snapshot) buildOwnerMapFrom(snapshot)
       setError(e?.message || "Failed to set owner");
@@ -297,7 +293,6 @@ const App: React.FC = () => {
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">Devices</h2>
                 <DeviceTable
-                  devices={allDevices}
                   deviceMap={deviceMap}
                   onSetLabel={handleSetLabel}
                   considerHomeMs={considerHomeMs}
@@ -310,7 +305,6 @@ const App: React.FC = () => {
           {activeTab === 'maintenance' && (
             <MaintenanceView
               homeMacs={snapshot.home}
-              unknownMacs={snapshot.unknownMacsNeedingLabels}
               awayMacs={snapshot.away}
               onAddLabel={handleAddLabel}
               deviceMap={deviceMap}

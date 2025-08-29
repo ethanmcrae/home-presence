@@ -170,7 +170,7 @@ const App: React.FC = () => {
     const allDevices: UiDevice[] = [...Object.values(deviceMap)];
     allDevices.forEach((device) => {
       const owner = deviceMap[device.mac]?.ownerName;
-      if (owner) {
+      if (owner && deviceMap[device.mac].ownerId !== 1) {
         if (!grouped[owner]) grouped[owner] = [];
         grouped[owner].push(device);
       }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { listOwners, createOwner, updateOwner, deleteOwner, Owner } from "../api/owners";
+import { listOwners, createOwner, updateOwner, deleteOwner } from "../api/owners";
+import { Owner } from "../types";
 
 export const SettingsOwners: React.FC = () => {
   const [owners, setOwners] = useState<Owner[]>([]);

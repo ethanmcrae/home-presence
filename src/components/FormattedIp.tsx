@@ -1,7 +1,7 @@
 import * as React from "react";
 
 type FormattedIpProps = {
-  ip?: string;
+  ip: string | null;
   className?: string;
   /** How many digits to pad the target octet to (default 3). */
   padTo?: number;

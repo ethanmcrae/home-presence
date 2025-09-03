@@ -1,4 +1,5 @@
-export type Owner = { id: number; name: string; kind: 'person' | 'home' };
+import { Owner } from "../types";
+
 const BASE = "http://localhost:4000"; // or import.meta.env.VITE_API_BASE 
 
 export async function listOwners(): Promise<Owner[]> {

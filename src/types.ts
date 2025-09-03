@@ -5,15 +5,17 @@
  */
 
 export interface Device {
-  mac: string;
-  label: string | null;
-  display: string;
+  mac: string; // DB
+  label: string | null; // DB
+  display: string | null;
   connected: boolean;
-  band: string | null;
+  band: string | null; // DB
   rssi: number | null;
-  ip: string | null;
+  ip: string | null; // DB
+  presenceType?: PresenceType; // DB
   ownerId?: number;
   ownerName?: string;
+  ownerType?: string;
 }
 
 /**
@@ -33,13 +35,15 @@ export interface PresenceSnapshot {
   unclaimedDevicesNeedingLabels: string[];
 }
 
+export interface Owner {
+  id: number;
+  name: string;
+  kind: 'person' | 'home' | 'guest';
+};
+
 export type Category = 'home' | 'unclaimedDevicesNeedingLabels' | 'away';
 
-/**
- * A temporary placeholder mapping of MAC addresses to user-provided names. You might
- * store this in a backend database in the future. For now it's just
- * an in-memory record on the frontend.
- */
-export type LabelMap = Record<string, string>;
+export type PresenceType = 1 | 2 | null;
 
 export type DeviceMap = Record<string, Device>;
+export type OwnerMap = Record<number, Owner>;

@@ -1,18 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { Category, Device, DeviceMap } from '../types';
-import type { Owner } from '../api/owners';
+import { Category, Device, DeviceMap, Owner, OwnerMap, PresenceType } from '../types';
 import { Select } from './Select';
-import { padIp } from '../helpers/text';
 import { FormattedIp } from './FormattedIp';
 
 interface MaintenanceViewProps {
-  homeMacs: Device[];
-  awayMacs: Device[];
   onAddLabel: (mac: string, label: string, category: Category) => void;
   deviceMap: DeviceMap;
-  owners: Owner[];
-  ownerMap: Record<string, number | null>;
+  owners: OwnerMap;
   onSetOwner: (mac: string, ownerId?: number, ownerName?: string) => void;
+  onSetPresenceType: (mac: string, presenceType?: PresenceType) => void;
 }
 
 /**
@@ -22,15 +18,22 @@ interface MaintenanceViewProps {
  * this updates the deviceMap in the parent and (for unknowns) removes the MAC.
  */
 export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
-  homeMacs,
-  awayMacs,
   onAddLabel,
   deviceMap,
   owners,
-  ownerMap,
-  onSetOwner
+  onSetOwner,
+  onSetPresenceType
 }) => {
-  type Row = { mac: string; label: string | null; display?: string; ip?: string; };
+  type Row = { mac: string; label: string | null; display: string | null; ip: string | null; };
+
+  const homeMacs: Device[] = [];
+  const awayMacs: Device[] = [];
+
+  for (const mac in deviceMap) {
+    const device = deviceMap[mac];
+    if (device.connected) homeMacs.push(device);
+    else awayMacs.push(device);
+  }
 
   const [editState, setEditState] = useState<Record<string, string>>({});
 
@@ -104,7 +107,9 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
           <thead>
             <tr className="bg-gray-200 text-gray-700">
               <th className="py-2 px-4 text-left">Identifiers</th>
+              <th className="py-2 px-4 text-left">Owner</th>
               <th className="py-2 px-4 text-left">Friendly Label</th>
+              <th className="py-2 px-4 text-left">Device Type</th>
               <th className="py-2 px-4 text-left"></th>
             </tr>
           </thead>
@@ -113,6 +118,7 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                 const effectiveLabel = (deviceMap[mac].label ?? label ?? '') as string;
                 const current = editState[mac] ?? effectiveLabel;
                 const ownerId = deviceMap[mac]?.ownerId ?? null;
+                const presenceType = deviceMap[mac].presenceType ?? null;
 
                 return (
                   <tr key={mac} className="border-b border-gray-200">
@@ -125,12 +131,13 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                       <Select
                         value={String(ownerId)}
                         onChange={(v) => {
-                          const nextId = v === null ? undefined : Number(v);
-                          const name = v === null ? undefined : owners.find(o => String(o.id) === v)?.name ?? undefined;
+                          const id = Number(v);
+                          const nextId = v === null ? undefined : id;
+                          const name = v === null ? undefined : owners[id]?.name ?? undefined;
                           onSetOwner(mac, nextId, name ?? undefined);
                         }}
                         placeholder="Unassigned"
-                        options={owners.map(o => ({
+                        options={Object.values(owners).map(o => ({
                           value: String(o.id),
                           label: (
                             <span className="flex items-center gap-1">
@@ -141,6 +148,54 @@ export const MaintenanceView: React.FC<MaintenanceViewProps> = ({
                         }))}
                       />
                     </td>
+
+                    <td className="py-2 px-4">
+                      <Select
+                        value={presenceType == null ? "" : String(presenceType)}
+                        onChange={(v) => {
+                          const next =
+                            v == null || v === "" ? null :
+                              Number(v) === 1 ? 1 :
+                                Number(v) === 2 ? 2 :
+                                  null;
+                          onSetPresenceType(mac, next as PresenceType | null);
+                        }}
+                        unassignedRow={false}
+                        options={[
+                          {
+                            value: "",
+                            label: (
+                              <span className="flex items-center gap-2">
+                                <span className="inline-block rounded bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5">
+                                  Untracked
+                                </span>
+                              </span>
+                            ),
+                          },
+                          {
+                            value: "1",
+                            label: (
+                              <span className="flex items-center gap-2">
+                                <span className="inline-block rounded bg-green-100 text-green-800 text-xs px-1.5 py-0.5">
+                                  Primary
+                                </span>
+                              </span>
+                            ),
+                          },
+                          {
+                            value: "2",
+                            label: (
+                              <span className="flex items-center gap-2">
+                                <span className="inline-block rounded bg-blue-100 text-blue-800 text-xs px-1.5 py-0.5">
+                                  Secondary
+                                </span>
+                              </span>
+                            ),
+                          },
+                        ]}
+                      />
+                    </td>
+
 
                     <td className="py-2 px-4">
                       <input

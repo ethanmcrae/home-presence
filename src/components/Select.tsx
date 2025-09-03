@@ -11,6 +11,7 @@ type Props = {
   className?: string;
   buttonClassName?: string;
   listClassName?: string;
+  unassignedRow?: boolean;
 };
 
 export const Select: React.FC<Props> = ({
@@ -19,6 +20,7 @@ export const Select: React.FC<Props> = ({
   className = "relative inline-block w-56",
   buttonClassName = "w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white text-left flex items-center justify-between",
   listClassName = "absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded border border-gray-200 bg-white shadow",
+  unassignedRow = true,
 }) => {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
@@ -89,15 +91,17 @@ export const Select: React.FC<Props> = ({
           }}
         >
           {/* Unassigned row */}
-          <li
-            role="option"
-            aria-selected={value == null}
-            className={`px-3 py-2 text-sm cursor-pointer ${value == null ? "bg-indigo-50" : "hover:bg-gray-100"}`}
-            onMouseEnter={() => setActiveIndex(-1)}
-            onClick={() => { onChange(null); setOpen(false); }}
-          >
-            <span className="text-gray-600">Unassigned</span>
-          </li>
+          {unassignedRow &&
+            <li
+              role="option"
+              aria-selected={value == null}
+              className={`px-3 py-2 text-sm cursor-pointer ${value == null ? "bg-indigo-50" : "hover:bg-gray-100"}`}
+              onMouseEnter={() => setActiveIndex(-1)}
+              onClick={() => { onChange(null); setOpen(false); }}
+            >
+              <span className="text-gray-600">Unassigned</span>
+            </li>
+          }
 
           {options.map((o, i) => {
             const isSel = o.value === value;

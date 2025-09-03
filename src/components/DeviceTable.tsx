@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import type { Device as UiDevice } from '../types';
+import type { Device } from '../types';
 import { RssiIndicator } from './RssiIndicator';
 
 interface DeviceTableProps {
-  deviceMap: Record<string, UiDevice>;
+  deviceMap: Record<string, Device>;
   onSetLabel: (mac: string, label: string) => void;
   considerHomeMs: number;
   capturedAt: string;
@@ -85,7 +85,7 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({ deviceMap, onSetLabel,
                         className={`text-left hover:underline focus:outline-none ${hasOwner ? 'text-gray-900' : 'text-gray-600'}`}
                       onClick={() => {
                         setEditingMac(mac);
-                        setTempLabel(currentLabel ?? device.display);
+                        setTempLabel(currentLabel ?? device.display ?? '');
                       }}
                     >
                       {currentLabel ?? device.display}

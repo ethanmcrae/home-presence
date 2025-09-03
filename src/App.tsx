@@ -2,32 +2,51 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { PersonCard } from './components/PersonCard';
 import { DeviceTable } from './components/DeviceTable';
 import { MaintenanceView } from './components/MaintenanceView';
-import type { Device as UiDevice, PresenceSnapshot as UiPresenceSnapshot, LabelMap, Category, DeviceMap, DeviceDetails } from './types';
+import type { Device, PresenceSnapshot, Category, DeviceMap, DeviceDetails, OwnerMap, PresenceType } from './types';
 import { getPresenceSnapshot } from './api/router';
-import { listDeviceDetails, upsertDeviceLabel } from './api/devices';
+import { listDeviceDetails, upsertDevice, upsertDeviceLabel } from './api/devices';
 import { listOwners } from './api/owners';
 import { setDeviceOwner } from './api/devices';
-import type { Owner } from './api/owners';
 import { SettingsOwners } from './components/SettingsOwners';
+import { scrubNullish } from './helpers/objects';
 
-function buildDeviceMapFrom(snapshot: UiPresenceSnapshot, dbDevices: Record<string, DeviceDetails>): DeviceMap {
+function buildDeviceMapFrom(snapshot: PresenceSnapshot, dbDevices: Record<string, DeviceDetails>, owners: OwnerMap): DeviceMap {
   const merged: DeviceMap = {};
-  const all: UiDevice[] = [...snapshot.home, ...snapshot.away];
+  const all: Device[] = [...snapshot.home, ...snapshot.away];
   for (const device of all) {
     const { mac } = device
     if (!merged[mac]) {
-      const details = dbDevices[mac] || {};
-      merged[mac] = { ...device, ...details} as UiDevice
+      const details = scrubNullish(dbDevices[mac] || {});
+      // Try to assign owner
+      const ownerDetails: any = {};
+      if (details.ownerId && owners[details.ownerId]) {
+        const owner = owners[details.ownerId];
+        ownerDetails.ownerName = owner.name;
+        ownerDetails.ownerType = owner.kind;
+      }
+      merged[mac] = { ...device, ...details, ...ownerDetails } as Device
     }
   }
+  // Gather 'away' devices
+  for (const mac in dbDevices) {
+    if (merged[mac]) {
+      continue; // Do not overwrite the router's data
+    }
+    
+    const deviceRecord = dbDevices[mac];
+    const awayDevice: Device = {
+      label: null,
+      display: null,
+      connected: false,
+      band: null,
+      rssi: null,
+      ip: null,
+      ...deviceRecord, // Overwrite nulls with pre-recorded fields
+    };
+    merged[mac] = awayDevice
+    console.log(mac, 'doesn\'t exist', awayDevice);
+  }
   return merged;
-}
-
-function buildOwnerMapFrom(snapshot: UiPresenceSnapshot): Record<string, number | null> {
-  const map: Record<string, number | null> = {};
-  const all: UiDevice[] = [...snapshot.home, ...snapshot.away];
-  for (const d of all) map[d.mac] = (d as any).ownerId ?? null;
-  return map;
 }
 
 /**
@@ -37,7 +56,7 @@ function buildOwnerMapFrom(snapshot: UiPresenceSnapshot): Record<string, number 
  */
 const App: React.FC = () => {
   // Live presence snapshot fetched from the router API.
-  const [snapshot, setSnapshot] = useState<UiPresenceSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<PresenceSnapshot | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,8 +72,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'maintenance' | 'settings'>('dashboard');
 
   // Owners list
-  const [owners, setOwners] = useState<Owner[]>([]);
-  const [ownerMap, setOwnerMap] = useState<Record<string, number | null>>({});
+  const [owners, setOwners] = useState<OwnerMap>({});
 
   // Fetch a fresh snapshot from the router. Options are intentionally
   // omitted per the requirement — we call getPresenceSnapshot() directly.
@@ -64,7 +82,7 @@ const App: React.FC = () => {
     try {
       const snap = await getPresenceSnapshot();
       // The presence module's type is shape-compatible with our UI types.
-      setSnapshot(snap as unknown as UiPresenceSnapshot);
+      setSnapshot(snap as unknown as PresenceSnapshot);
     } catch (e: any) {
       console.error(e);
       setError(e?.message || 'Failed to load presence snapshot');
@@ -76,33 +94,32 @@ const App: React.FC = () => {
   const loadOwnersOnce = async () => {
     try {
       const os = await listOwners();
-      setOwners(os);
-    } catch (e) {
-      // non-fatal
-    }
-  };
+      const map: OwnerMap = {};
+      for (const o of os) map[o.id] = o;
 
-  const refreshDerivedFromSnapshot = async (snap: UiPresenceSnapshot, opts?: { canceled?: () => boolean }) => {
-    // ownerMap is derived locally
-    setOwnerMap(buildOwnerMapFrom(snap));
-
-    // labels come from DB + snapshot fallback
-    try {
-      const dbDevices = await listDeviceDetails();
-      if (opts?.canceled?.()) return;               // simple race guard
-      setDeviceMap(buildDeviceMapFrom(snap, dbDevices));
+      setOwners(map);
     } catch (e) {
       console.error(e);
     }
   };
 
-  // On mount: fetch snapshot (unchanged)
+  const refreshDerivedFromSnapshot = async (snap: PresenceSnapshot, opts?: { canceled?: () => boolean }) => {
+    try {
+      const dbDevices = await listDeviceDetails();
+      if (opts?.canceled?.()) return;
+      setDeviceMap(buildDeviceMapFrom(snap, dbDevices, owners));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // On mount: fetch snapshot and owners
   useEffect(() => {
+    loadOwnersOnce();
     fetchSnapshot();
-    loadOwnersOnce(); // settings page should re-call after CRUD
   }, []);
 
-  // Whenever snapshot changes: rebuild ownerMap + labelMap
+  // Whenever snapshot changes: rebuild devices
   useEffect(() => {
     if (!snapshot) return;
     let cancelled = false;
@@ -113,7 +130,7 @@ const App: React.FC = () => {
     })();
 
     return () => { cancelled = true; };
-  }, [snapshot]);
+  }, [snapshot, owners]);
 
   /** Assigns a new label to a MAC address. */
   const handleSetLabel = async (mac: string, label: string) => {
@@ -150,24 +167,31 @@ const App: React.FC = () => {
   };
 
   const handleSetOwner = async (mac: string, ownerId?: number, ownerName?: string) => {
-    const prev = ownerMap[mac] ?? null;
-    if (snapshot) buildOwnerMapFrom(snapshot)
     try {
       await setDeviceOwner(mac, ownerId ?? null);
-      const updatedDevice: UiDevice = { ...deviceMap[mac], ownerId, ownerName }
+      const updatedDevice: Device = { ...deviceMap[mac], ownerId, ownerName }
       setDeviceMap((map) => ({ ...map, [mac]: updatedDevice }));
     } catch (e: any) {
-      if (snapshot) buildOwnerMapFrom(snapshot)
       setError(e?.message || "Failed to set owner");
+    }
+  };
+
+  const handleSetPresenceType = async (mac: string, presenceType?: PresenceType) => {
+    try {
+      await upsertDevice(mac, { presenceType });
+      const updatedDevice: Device = { ...deviceMap[mac], presenceType: presenceType ?? null }
+      setDeviceMap((map) => ({ ...map, [mac]: updatedDevice }));
+    } catch (e: any) {
+      setError(e?.message || "Failed to update presence type for device");
     }
   };
 
   /** Derive persons from the current snapshot + label map. */
   const persons = useMemo(() => {
-    if (!snapshot) return [] as { name: string; devices: UiDevice[]; isHome: boolean }[];
+    if (!snapshot) return [] as { name: string; devices: Device[]; isHome: boolean }[];
 
-    const grouped: Record<string, UiDevice[]> = {};
-    const allDevices: UiDevice[] = [...Object.values(deviceMap)];
+    const grouped: Record<string, Device[]> = {};
+    const allDevices: Device[] = [...Object.values(deviceMap)];
     allDevices.forEach((device) => {
       const owner = deviceMap[device.mac]?.ownerName;
       if (owner && deviceMap[device.mac].ownerId !== 1) {
@@ -187,11 +211,6 @@ const App: React.FC = () => {
       return { name, devices, isHome };
     });
   }, [snapshot, deviceMap, considerHomeMs]);
-
-  const allDevices: UiDevice[] = useMemo(() => {
-    if (!snapshot) return [] as UiDevice[];
-    return [...snapshot.home, ...snapshot.away];
-  }, [snapshot]);
 
   return (
     <div className="max-w-7xl mx-auto p-4">
@@ -304,13 +323,11 @@ const App: React.FC = () => {
 
           {activeTab === 'maintenance' && (
             <MaintenanceView
-              homeMacs={snapshot.home}
-              awayMacs={snapshot.away}
               onAddLabel={handleAddLabel}
               deviceMap={deviceMap}
               owners={owners}
-              ownerMap={ownerMap}
               onSetOwner={handleSetOwner}
+              onSetPresenceType={handleSetPresenceType}
             />
           )}
 

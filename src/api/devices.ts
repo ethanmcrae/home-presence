@@ -1,4 +1,4 @@
-import { DeviceDetails } from "../types";
+import { Device, DeviceDetails } from "../types";
 
 const BASE = "http://localhost:4000"; // or import.meta.env.VITE_API_BASE 
 
@@ -10,6 +10,20 @@ export async function listDeviceDetails(): Promise<Record<string, DeviceDetails>
   rows.forEach(r => { map[r.mac] = r; });
   return map;
 }
+
+export async function upsertDevice(
+  mac: string,
+  payload: Partial<{ label: string | null; band: string | null; ip: string | null; ownerId: number | null; presenceType: 1 | 2 | null }>
+) {
+  const res = await fetch(`${BASE}/api/devices/${encodeURIComponent(mac)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to update device");
+  return res.json() as Promise<Device>;
+}
+
 
 export async function upsertDeviceLabel(mac: string, label: string): Promise<DeviceDetails> {
   const res = await fetch(`${BASE}/api/devices/${encodeURIComponent(mac)}`, {

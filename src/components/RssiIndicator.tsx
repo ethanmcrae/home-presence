@@ -20,7 +20,10 @@ export const RssiIndicator: React.FC<Props> = ({ rssi, className }) => {
   const heights = [8, 12, 16, 20]; // px heights for each bar (left→right)
 
   return (
-    <span className={`inline-flex items-center gap-2 ${className || ""}`} title={`${rssi} dBm`}>
+    <span
+      className={`inline-flex items-center gap-2 ${className || ""}`}
+      title={`${rssi} dBm`}
+    >
       {/* bars */}
       <span className="flex items-end gap-[2px]" aria-hidden="true">
         {Array.from({ length: cols }).map((_, i) => {
@@ -28,14 +31,17 @@ export const RssiIndicator: React.FC<Props> = ({ rssi, className }) => {
           return (
             <span
               key={i}
-              className={`w-1.5 rounded-sm ${active ? "bg-green-600" : "bg-gray-300"}`}
+              className={`w-1.5 rounded-sm ${active
+                  ? "bg-green-600"
+                  : "bg-gray-300 dark:bg-gray-700"
+                }`}
               style={{ height: heights[i] }}
             />
           );
         })}
       </span>
       {/* simple label for humans */}
-      <span className="text-xs text-gray-700">{text}</span>
+      <span className="text-xs text-gray-700 dark:text-gray-300">{text}</span>
     </span>
   );
 };

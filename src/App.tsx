@@ -188,15 +188,30 @@ const App: React.FC = () => {
 
   /** Derive persons from the current snapshot + label map. */
   const persons = useMemo(() => {
-    if (!snapshot) return [] as { name: string; devices: Device[]; isHome: boolean }[];
+    if (!snapshot) return [] as { name: string; devices: Record<'primary' | 'secondary' | 'all', Device[]>; isHome: boolean }[];
 
-    const grouped: Record<string, Device[]> = {};
+    const grouped: Record<string, Record<'primary' | 'secondary' | 'all', Device[]>> = {};
     const allDevices: Device[] = [...Object.values(deviceMap)];
+
+    // Initialize each person's device lists
+    for (const ownerId in owners) {
+      const owner = owners[ownerId];
+      if (owner.id === 1) continue;
+      grouped[owner.name] = { primary: [], secondary: [], all: [] };
+    }
+
+    // Populate devices
     allDevices.forEach((device) => {
-      const owner = deviceMap[device.mac]?.ownerName;
-      if (owner && deviceMap[device.mac].ownerId !== 1) {
-        if (!grouped[owner]) grouped[owner] = [];
-        grouped[owner].push(device);
+      const owner = device?.ownerName;
+      if (owner && device.ownerId !== 1) {
+        if (device.presenceType) {
+          grouped[owner].all.push(device);
+          if (device.presenceType === 1) {
+            grouped[owner].primary.push(device);
+          } else if (device.presenceType === 2) {
+            grouped[owner].secondary.push(device);
+          }
+        }
       }
     });
 
@@ -204,86 +219,86 @@ const App: React.FC = () => {
     const timeSinceCapture = Date.now() - capturedDate.getTime();
 
     return Object.entries(grouped).map(([name, devices]) => {
-      const isHome = devices.some((d) => {
+      const isHome = devices.all.some((d) => {
         const offlineButWithinWindow = !d.connected && timeSinceCapture < considerHomeMs;
-        return d.connected || offlineButWithinWindow;
+        return d.presenceType === 1 && d.display && (d.connected || offlineButWithinWindow);
       });
       return { name, devices, isHome };
     });
   }, [snapshot, deviceMap, considerHomeMs]);
 
   return (
-    <div className="max-w-7xl mx-auto p-4">
+    <div className="max-w-7xl mx-auto p-4 bg-gray-50 text-gray-900 dark:bg-[#0b0f18] dark:text-gray-100 min-h-screen">
       <header className="mb-6 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Home Presence Tracker</h1>
-          <p className="text-sm text-gray-600">Creepy stalky roomate watchy</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Home Presence Tracker</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Creepy stalky roomate watchy</p>
         </div>
         <div className="flex items-center gap-2">
           <button
-            className="px-3 py-2 rounded bg-indigo-600 text-white disabled:opacity-60"
+            className="px-3 py-2 rounded bg-indigo-600 text-white disabled:opacity-60 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 dark:focus:ring-indigo-400/50"
             onClick={fetchSnapshot}
             disabled={loading}
           >
-            {loading ? 'Refreshing…' : 'Refresh'}
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </header>
 
       {error && (
-        <div className="mb-4 bg-red-50 text-red-700 border border-red-200 rounded p-3 text-sm">
+        <div className="mb-4 bg-red-50 text-red-700 border border-red-200 rounded p-3 text-sm dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/50">
           {error}
         </div>
       )}
 
       {loading && !snapshot && (
-        <div className="animate-pulse text-gray-600">Loading presence…</div>
+        <div className="animate-pulse text-gray-600 dark:text-gray-400">Loading presence…</div>
       )}
 
       {snapshot && (
         <>
-          <nav className="mb-6 flex gap-4">
+          <nav className="mb-6 flex gap-2 sm:gap-4">
             <button
-              className={`px-3 py-2 rounded ${activeTab === 'dashboard'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
-              onClick={() => setActiveTab('dashboard')}
+              className={`${activeTab === "dashboard"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-100/90 dark:hover:bg-gray-700"
+                } px-3 py-2 rounded transition-colors`}
+              onClick={() => setActiveTab("dashboard")}
             >
               Dashboard
             </button>
             <button
-              className={`px-3 py-2 rounded ${activeTab === 'maintenance'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
-              onClick={() => setActiveTab('maintenance')}
+              className={`${activeTab === "maintenance"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-100/90 dark:hover:bg-gray-700"
+                } px-3 py-2 rounded transition-colors`}
+              onClick={() => setActiveTab("maintenance")}
             >
               Maintenance
             </button>
             <button
-              className={`px-3 py-2 rounded ${activeTab === 'settings'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                }`}
-              onClick={() => setActiveTab('settings')}
+              className={`${activeTab === "settings"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-100/90 dark:hover:bg-gray-700"
+                } px-3 py-2 rounded transition-colors`}
+              onClick={() => setActiveTab("settings")}
             >
               Settings
             </button>
           </nav>
 
-          {activeTab === 'dashboard' && (
+          {activeTab === "dashboard" && (
             <div className="space-y-8">
               {/* Presence assertions control */}
-              <div className="bg-white p-4 rounded-xl shadow-md flex flex-col gap-2">
+              <div className="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-md flex flex-col gap-2 border border-gray-100 dark:border-gray-800">
                 <div className="flex items-center gap-2">
-                  <label htmlFor="considerHome" className="text-gray-700 text-sm">
+                  <label htmlFor="considerHome" className="text-gray-700 dark:text-gray-200 text-sm">
                     Consider home window (minutes):
                   </label>
                   <input
                     id="considerHome"
                     type="number"
-                    className="border rounded px-2 py-1 w-20"
+                    className="border border-gray-300 dark:border-gray-700 rounded px-2 py-1 w-20 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 dark:focus:ring-indigo-400/50"
                     value={Math.round(considerHomeMs / 1000 / 60)}
                     min={0}
                     onChange={(e) => {
@@ -292,15 +307,14 @@ const App: React.FC = () => {
                     }}
                   />
                 </div>
-                <p className="text-xs text-gray-500">
-                  Devices that disconnect will still be treated as home if they were last seen
-                  within this many minutes. Captured at {new Date(snapshot.capturedAt).toLocaleString()}.
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Devices that disconnect will still be treated as home if they were last seen within this many minutes. Captured at {new Date(snapshot.capturedAt).toLocaleString()}.
                 </p>
               </div>
 
               {/* Persons grid */}
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">People</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">People</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {persons.map((p) => (
                     <PersonCard key={p.name} name={p.name} devices={p.devices} isHome={p.isHome} />
@@ -310,7 +324,7 @@ const App: React.FC = () => {
 
               {/* Devices table */}
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Devices</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Devices</h2>
                 <DeviceTable
                   deviceMap={deviceMap}
                   onSetLabel={handleSetLabel}
@@ -321,7 +335,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'maintenance' && (
+          {activeTab === "maintenance" && (
             <MaintenanceView
               onAddLabel={handleAddLabel}
               deviceMap={deviceMap}
@@ -331,9 +345,7 @@ const App: React.FC = () => {
             />
           )}
 
-          {activeTab === 'settings' && (
-            <SettingsOwners />
-          )}
+          {activeTab === "settings" && <SettingsOwners />}
         </>
       )}
     </div>

@@ -7,3 +7,20 @@
 html, body, #root {
   height: 100%;
 }
+
+/* Ensure form controls inherit text/background in both schemes */
+input,
+textarea,
+select,
+button {
+  color: inherit;
+  background-color: inherit;
+}
+
+/* Safari autofill can force light text; pin it for light & dark */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: inherit;
+  caret-color: inherit;
+}

@@ -18,8 +18,8 @@ export const Select: React.FC<Props> = ({
   value, onChange, options,
   placeholder = "Select…",
   className = "relative inline-block w-56",
-  buttonClassName = "w-full border border-gray-300 rounded px-2 py-1 text-sm bg-white text-left flex items-center justify-between",
-  listClassName = "absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded border border-gray-200 bg-white shadow",
+  buttonClassName = "w-full border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-gray-950 dark:text-gray-100 text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-indigo-500/60 dark:focus:ring-indigo-400/50",
+  listClassName = "absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 dark:text-gray-100 shadow",
   unassignedRow = true,
 }) => {
   const [open, setOpen] = useState(false);
@@ -28,7 +28,6 @@ export const Select: React.FC<Props> = ({
 
   const selected = value == null ? null : options.find(o => o.value === value) || null;
 
-  // close on outside click
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
@@ -37,7 +36,6 @@ export const Select: React.FC<Props> = ({
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  // keyboard support
   const move = (dir: 1 | -1) => {
     const last = options.length - 1;
     let next = activeIndex;
@@ -68,8 +66,10 @@ export const Select: React.FC<Props> = ({
           if (e.key === "Escape") { setOpen(false); }
         }}
       >
-        <span className="truncate">{selected ? selected.label : <span className="text-gray-500">{placeholder}</span>}</span>
-        <svg width="16" height="16" className="opacity-70" viewBox="0 0 20 20" fill="currentColor">
+        <span className="truncate">
+          {selected ? selected.label : <span className="text-gray-500 dark:text-gray-400">{placeholder}</span>}
+        </span>
+        <svg width="16" height="16" className="opacity-70" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path d="M5.25 7.5l4.5 4.5 4.5-4.5" />
         </svg>
       </button>
@@ -95,11 +95,14 @@ export const Select: React.FC<Props> = ({
             <li
               role="option"
               aria-selected={value == null}
-              className={`px-3 py-2 text-sm cursor-pointer ${value == null ? "bg-indigo-50" : "hover:bg-gray-100"}`}
+              className={`px-3 py-2 text-sm cursor-pointer ${value == null
+                  ? "bg-indigo-50 dark:bg-indigo-900/30"
+                  : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
               onMouseEnter={() => setActiveIndex(-1)}
               onClick={() => { onChange(null); setOpen(false); }}
             >
-              <span className="text-gray-600">Unassigned</span>
+              <span className="text-gray-600 dark:text-gray-300">Unassigned</span>
             </li>
           }
 
@@ -111,7 +114,8 @@ export const Select: React.FC<Props> = ({
                 key={o.value}
                 role="option"
                 aria-selected={isSel}
-                className={`px-3 py-2 text-sm cursor-pointer ${isActive ? "bg-indigo-50" : "hover:bg-gray-100"}`}
+                className={`px-3 py-2 text-sm cursor-pointer ${isActive ? "bg-indigo-50 dark:bg-indigo-900/30" : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`}
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => { onChange(o.value); setOpen(false); }}
               >

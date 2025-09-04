@@ -15,5 +15,6 @@ module.exports = {
       // You can customize your colour palette and typography here
     }
   },
+  darkMode: 'media',
   plugins: []
 };

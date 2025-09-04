@@ -5,43 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Home Presence</title>
 
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-dark-32.png" media="(prefers-color-scheme: dark)">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-dark-16.png" media="(prefers-color-scheme: dark)">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-light-32.png" media="(prefers-color-scheme: light)">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-light-16.png" media="(prefers-color-scheme: light)">
-  <!-- Choose ONE for iOS -->
-  <link rel="apple-touch-icon" href="/favicon-light-apple-touch-180.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-dark-32.png" media="(prefers-color-scheme: dark)">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-dark-16.png" media="(prefers-color-scheme: dark)">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-light-32.png" media="(prefers-color-scheme: light)">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-light-16.png" media="(prefers-color-scheme: light)">
+    <!-- Choose ONE for iOS -->
+    <link rel="apple-touch-icon" href="/favicon-light-apple-touch-180.png">
 
     <!-- Nice to have: set the browser UI color -->
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0f18">
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
 
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      (function () {
-        const mq = window.matchMedia('(prefers-color-scheme: dark)');
-
-        function apply(dark) {
-          const v = Date.now(); // cache-bust for Safari
-          const href32 = dark ? `/favicon-dark-32.png?v=${v}` : `/favicon-light-32.png?v=${v}`;
-          const href16 = dark ? `/favicon-dark-16.png?v=${v}` : `/favicon-light-16.png?v=${v}`;
-
-          let l32 = document.querySelector('link[rel="icon"][sizes="32x32"]');
-          let l16 = document.querySelector('link[rel="icon"][sizes="16x16"]');
-
-          if (!l32) { l32 = document.createElement('link'); l32.rel = 'icon'; l32.type = 'image/png'; l32.sizes = '32x32'; document.head.appendChild(l32); }
-          if (!l16) { l16 = document.createElement('link'); l16.rel = 'icon'; l16.type = 'image/png'; l16.sizes = '16x16'; document.head.appendChild(l16); }
-
-          l32.href = href32;
-          l16.href = href16;
-        }
-
-        apply(mq.matches);
-        mq.addEventListener?.('change', e => apply(e.matches));
-      })();
-    </script>
   </head>
-  <body class="bg-gray-100">
+  <body class="bg-gray-100 text-gray-900 dark:bg-[#0b0f18] dark:text-gray-100">
     <div id="root"></div>
   </body>
 </html>

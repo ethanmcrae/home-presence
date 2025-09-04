@@ -39,7 +39,7 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({ deviceMap, onSetLabel,
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm">
         <thead>
-          <tr className="bg-gray-200 text-gray-700">
+          <tr className="bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
             <th className="py-2 px-4 text-left">Name</th>
             <th className="py-2 px-4 text-left">MAC</th>
             <th className="py-2 px-4 text-left">Band</th>
@@ -52,60 +52,75 @@ export const DeviceTable: React.FC<DeviceTableProps> = ({ deviceMap, onSetLabel,
           {devices.map((device) => {
             const mac = device.mac;
             const currentLabel = deviceMap[mac]?.label ?? device.label;
-            // Determine whether the device should be considered home. If the
-            // device is currently connected, we mark it as home immediately.
-            // Otherwise, if it's offline but the time since the snapshot is
-            // less than the consider‑home window, we still treat it as home.
-            const offlineButWithinWindow = !device.connected && timeSinceCapture < considerHomeMs;
-            const consideredHome = device.connected || offlineButWithinWindow;
+            const offlineButWithinWindow =
+              !device.connected && timeSinceCapture < considerHomeMs;
+            const consideredHome =
+              device.display && (device.connected || offlineButWithinWindow);
             const hasOwner = Boolean(device.ownerId) && device.ownerId !== 1;
 
             return (
-              <tr key={mac} className="border-b border-gray-200">
-                <td className="py-2 px-4">
+              <tr
+                key={mac}
+                className="border-b border-gray-200 dark:border-gray-700"
+              >
+                <td className="relative py-2 px-4">
+                  {hasOwner && (
+                    <span
+                      className={`$${editingMac === mac ? "pt-[0.25rem] pl-1 " : ""
+                        }absolute`}
+                    >
+                      👤
+                    </span>
+                  )}
                   {editingMac === mac ? (
                     <input
                       autoFocus
-                      className="w-full border border-gray-300 rounded px-1 py-1 text-sm"
+                      className={`${hasOwner ? "pl-7 " : ""
+                        }w-full border border-gray-300 dark:border-gray-700 rounded px-1 py-1 text-sm bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100`}
                       value={tempLabel}
                       onChange={(e) => setTempLabel(e.target.value)}
                       onBlur={() => handleLabelSave(mac)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === "Enter") {
                           e.preventDefault();
                           handleLabelSave(mac);
-                        } else if (e.key === 'Escape') {
+                        } else if (e.key === "Escape") {
                           setEditingMac(null);
-                          setTempLabel('');
+                          setTempLabel("");
                         }
                       }}
                     />
                   ) : (
                     <button
-                        className={`text-left hover:underline focus:outline-none ${hasOwner ? 'text-gray-900' : 'text-gray-600'}`}
+                      className={`text-left hover:underline focus:outline-none ${hasOwner
+                          ? "text-gray-900 dark:text-gray-100 pl-6"
+                          : "text-gray-600 dark:text-gray-400"
+                        }`}
                       onClick={() => {
                         setEditingMac(mac);
-                        setTempLabel(currentLabel ?? device.display ?? '');
+                        setTempLabel(currentLabel ?? device.display ?? "");
                       }}
                     >
                       {currentLabel ?? device.display}
                     </button>
                   )}
                 </td>
-                <td className="py-2 px-4 font-mono text-xs text-gray-600 whitespace-nowrap">{mac}</td>
-                <td className="py-2 px-4 capitalize">{device.band ?? '-'}</td>
+                <td className="py-2 px-4 font-mono text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                  {mac}
+                </td>
+                <td className="py-2 px-4 capitalize">{device.band ?? "-"}</td>
                 <td className="py-2 px-4">
                   <RssiIndicator rssi={device.rssi} />
                 </td>
-                <td className="py-2 px-4 whitespace-nowrap">{device.ip ?? '-'}</td>
+                <td className="py-2 px-4 whitespace-nowrap">{device.ip ?? "-"}</td>
                 <td className="py-2 px-4">
                   <span
                     className={`px-2 py-1 rounded text-xs font-medium ${consideredHome
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-gray-100 text-gray-600'
-                    }`}
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                        : "bg-orange-100 text-yellow-800 dark:bg-orange-900/30 dark:text-yellow-300"
+                      }`}
                   >
-                    {consideredHome ? 'Home' : 'Away'}
+                    {consideredHome ? "Home" : "Away"}
                   </span>
                 </td>
               </tr>

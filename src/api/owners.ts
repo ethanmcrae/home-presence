@@ -1,6 +1,6 @@
 import { Owner } from "../types";
 
-const BASE = "http://localhost:4000"; // or import.meta.env.VITE_API_BASE 
+const BASE = "http://192.168.50.96:4000"; // or import.meta.env.VITE_API_BASE 
 
 export async function listOwners(): Promise<Owner[]> {
   const r = await fetch(`${BASE}/api/owners`, { cache: "no-store" });
